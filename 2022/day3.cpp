@@ -38,8 +38,6 @@ int part2(string l1, string l2, string l3) {
 
 int main() {
     cout << "Advent Of Code 2022 Day 3!" << endl;
-    // g++ AdventOfCode_day3.cpp -o AdventOfCode_day3 -std=c++11
-    // AdventOfCode_day3.exe
 
     string l1, l2, l3;
     ifstream puzzle("day3.txt");
@@ -53,7 +51,7 @@ int main() {
         sum += part2(l1, l2, l3);
     }
 
-    cout << sum;
+    cout << sum << endl;
 
     puzzle.close();
     return 0;

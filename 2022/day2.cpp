@@ -43,7 +43,7 @@ int main() {
         sum += part2(line);
     }
 
-    cout << sum;
+    cout << sum << endl;
 
     puzzle.close();
     return 0;
