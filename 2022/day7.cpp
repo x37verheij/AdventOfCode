@@ -12,6 +12,7 @@ class Dir
     int64_t dirSizeOnDisk = 0;     // Total dirSize of all subdirs.
     int64_t totalSize = 0;         // Cached total size, set when calculated.
     bool fullyInitialized = false; // When dirSizeOnDisk and totalSize are set.
+
 public:
     Dir(std::map<string, Dir *> *allDirectories) { pointerToMap = allDirectories; }
     void addFile(int64_t fileSize) { fileSizeOnDisk += fileSize; }
@@ -20,17 +21,14 @@ public:
     {
         if (fullyInitialized)
         {
-            cout << "FI!" << endl << flush;
             return totalSize;
         }
         for (string subDir : subDirs)
         {
-            cout << "Find subdir " << subDir << endl << flush;
             int64_t delta = (*pointerToMap).find(subDir)->second->getTotalSize();
             dirSizeOnDisk += delta;
         }
         totalSize = fileSizeOnDisk + dirSizeOnDisk;
-        cout << "TotalSize!" << totalSize << endl << flush;
         fullyInitialized = true;
         return totalSize;
     }
@@ -42,16 +40,52 @@ public:
     }
 };
 
+class FilePath
+{
+    string filePath;
+
+public:
+    void alterPath(string cd)
+    {
+        if (".." == cd)
+        {
+            filePath = filePath.substr(0, filePath.find_last_of("/"));
+            if ("" == filePath)
+            {
+                filePath = "/";
+            }
+        }
+        else if ("/" == cd)
+        {
+            filePath = cd;
+        }
+        else if ("/" == filePath)
+        {
+            filePath += cd;
+        }
+        else
+        {
+            filePath += "/" + cd;
+        }
+    }
+    string getPath() { return filePath; }
+    string getSubPath(string subPath)
+    {
+        if ("/" == filePath)
+        {
+            return filePath + subPath;
+        }
+        return filePath + "/" + subPath;
+    }
+};
+
 int main()
 {
     cout << "Advent Of Code 2022 Day 7!" << endl;
     ifstream puzzle("day7.txt");
     string keyword;
-    string currentDir;
-
-    // Assume that every directory name is unique, so that key = dirname and not dirpath.
-    // And here is where we get our infinite loop...
     std::map<string, Dir *> allDirectories;
+    FilePath fp;
 
     while (!puzzle.eof())
     {
@@ -70,42 +104,59 @@ int main()
             puzzle >> keyword;
             if ("cd" == keyword)
             {
-                puzzle >> currentDir;
-                if (".." != currentDir)
+                puzzle >> keyword;
+                fp.alterPath(keyword);
+                if (".." != keyword)
                 {
-                    allDirectories.insert({currentDir, new Dir(&allDirectories)});
+                    allDirectories.insert({fp.getPath(), new Dir(&allDirectories)});
                 }
             }
         }
         else if ("dir" == keyword)
         {
             puzzle >> keyword;
-            allDirectories.find(currentDir)->second->addSubDirectory(keyword); // dir [aaa]
+            allDirectories.find(fp.getPath())->second->addSubDirectory(fp.getSubPath(keyword)); // dir [aaa]
         }
         else
         {
-            allDirectories.find(currentDir)->second->addFile(stol(keyword)); // [29116] bbb.txt
+            allDirectories.find(fp.getPath())->second->addFile(stol(keyword)); // [29116] bbb.txt
             puzzle >> keyword;
         }
     }
 
     puzzle.close();
-    cout << "<1><1>" << endl;
+    cout << endl;
 
-    // Part 1: Find the sum of all directories with a total size of at most 100000.
+    // Part 1: Find the sum of all directories with a total size of at most 100000. // 1844187
     int64_t sum = 0;
+
     for (auto dir : allDirectories)
     {
-        cout << "<2><2>" << endl;
-        int64_t totalSize = dir.second->getTotalSize();
-        cout << "dir " << dir.first << " has size " << totalSize << endl;
-        if (totalSize <= 100000)
+        int64_t dirSize = dir.second->getTotalSize();
+        if (dirSize <= 100000)
         {
-            sum += totalSize;
+            sum += dirSize;
         }
     }
+    cout << "Sum dirs < 100 kB: " << sum << " B" << endl;
 
-    cout << endl << "Sum dirs < 100000: " << sum << endl;
+    // Part 2: Calculate the needed space and find closest match above that amount.
+    int64_t totalSize = allDirectories.find("/")->second->getTotalSize();
+    int64_t neededSpace = totalSize - 4e7;
+    int64_t bestMatch = 7e7;
+
+    for (auto dir : allDirectories)
+    {
+        int64_t dirSize = dir.second->getTotalSize();
+        if (dirSize >= neededSpace && dirSize < bestMatch)
+        {
+            bestMatch = dirSize;
+        }
+    }
+    cout << "Total size in use: " << totalSize / 1e6 << " MB" << endl;
+    cout << "Total free space: " << (7e7 - totalSize) / 1e6 << " MB" << endl;
+    cout << "For 30 MB free space, we need: " << neededSpace / 1e6 << " MB" << endl;
+    cout << "Closest above " << neededSpace / 1e6 << " MB: " << bestMatch << " B" << endl;
 
     return 0;
 }
