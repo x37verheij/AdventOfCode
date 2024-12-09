@@ -5,13 +5,6 @@ $file = Get-Content 'day7b.txt'
 #725034240000: 5 6 4 3 12 81 40 14 37 100
 #2898: 2 3 4 5 6 7 8 9 10 11 12
 
-<#
-9 numbers take 3.5 seconds
-10 numbers take 37 seconds
-Some equations of the 850 in the file are 12 numbers...
-
-#>
-
 $sum = 0
 $equations = @()
 
@@ -25,10 +18,13 @@ foreach ($line in $file)
     }
 }
 
-# get all possible results for equation
+<## get all possible results for equation
 function getPossibleResults
 {
     param ([int[]]$nums, [int]$lastNum, [int64]$answer)
+    # 9 numbers take 3.5 seconds
+    # 10 numbers take 37 seconds
+    # Some equations of the 850 in the file are 12 numbers...
     if (1 -eq $nums.Length)
     {
         return @() `
@@ -49,6 +45,23 @@ function getPossibleResults
     }
     #Write-Host $totals.Length
     return $totals
+}#>
+
+function recursiveResultTester # use operators and check answer and only then change an operator
+{
+    param ([int64]$subtotal, [int[]]$nums, [int64]$answer)
+    if ($subtotal -gt $answer) { return $false }
+    if (1 -eq $nums.Length)
+    {
+        if (($subtotal * $nums[0]) -eq $answer) { return $true }
+        if (($subtotal + $nums[0]) -eq $answer) { return $true }
+        if ([int64]("$subtotal$($nums[0])") -eq $answer) { return $true }
+        return $false
+    }
+    if (recursiveResultTester ($subtotal * $nums[0]) ($nums[1..($nums.Count-1)]) $answer) { return $true }
+    if (recursiveResultTester ($subtotal + $nums[0]) ($nums[1..($nums.Count-1)]) $answer) { return $true }
+    if (recursiveResultTester ("$subtotal$($nums[0])") ($nums[1..($nums.Count-1)]) $answer) { return $true }
+    return $false
 }
 
 $i = 0
@@ -56,10 +69,11 @@ $i = 0
 foreach ($equation in $equations)
 {
     $i += 1
-    $possibleResults = getPossibleResults -nums ($equation.Nums[0..($equation.Nums.Count-2)]) `
-    -lastNum $equation.Nums[-1] -answer $equation.Total
+    # $possibleResults = getPossibleResults -nums ($equation.Nums[0..($equation.Nums.Count-2)]) `
+    # -lastNum $equation.Nums[-1] -answer $equation.Total
 
-    if ($equation.Total -in $possibleResults)
+
+    if (recursiveResultTester ($equation.Nums[0]) ($equation.Nums[1..($equation.Nums.Count-1)]) $equation.Total)
     {
         $sum += $equation.Total
     }
