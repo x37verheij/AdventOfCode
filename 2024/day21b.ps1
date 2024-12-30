@@ -2,6 +2,7 @@
 Set-StrictMode -Version Latest
 $file = Get-Content 'day21b.txt'
 
+## General
 $levelsDeep = 25
 
 enum Action {
@@ -12,16 +13,6 @@ enum Action {
     Press = 4
 }
 
-function blockToString([byte[]]$block) {
-    return "$(($block | ForEach-Object {
-        if ([Action]::Up -eq $_) {'^'}
-        elseif ([Action]::Down -eq $_) {'v'}
-        elseif ([Action]::Left -eq $_) {'<'}
-        elseif ([Action]::Right -eq $_) {'>'}
-        else { 'A' }
-    }) -join '')"
-}
-
 function getKey([byte]$a, [byte]$b) {
     return ($a -shl 4) + $b
 }
@@ -29,7 +20,7 @@ function getKey([byte]$a, [byte]$b) {
 function getBlockKey([byte[]]$block) {
     [int32]$res = 0 # Longest path is from A to 7 with 6 actions. (6 * 4) bits fit in 32 bit int
     foreach ($i in 0..($block.Count - 1)) {
-        $res += [int32]$block[$i] -shl (4 * $i)
+        $res += [int32]$block[$i] -shl (4 * $i) # Last byte is [Action]::Press, must be MSB
     }
     return $res
 }
@@ -42,7 +33,7 @@ function calcActions($dx, $dy, [switch]$swapPriorities) {
         if ($dy -gt 0) { $actions += (@([Action]::Down) * $dy) }
         if ($dy -lt 0) { $actions += (@([Action]::Up) * -$dy) }
         if ($dx -lt 0) { $actions += (@([Action]::Left) * -$dx) }
-    } else {
+    } else { # See day 21a for how to find these priorities.
         if ($dx -lt 0) { $actions += (@([Action]::Left) * -$dx) }
         if ($dy -lt 0) { $actions += (@([Action]::Up) * -$dy) }
         if ($dy -gt 0) { $actions += (@([Action]::Down) * $dy) }
@@ -51,8 +42,49 @@ function calcActions($dx, $dy, [switch]$swapPriorities) {
     return $actions + @([Action]::Press)
 }
 
+## Prepare numpads
+$numericNumpad     = [System.Collections.Generic.Dictionary[byte, Action[]]]::new() # 0x0..0xA
+$directionalNumpad = [System.Collections.Generic.Dictionary[byte, Action[]]]::new() # [Action]
+
+foreach ($from in [byte[]](0x0..0xA)) { # Numeric
+    foreach ($to in [byte[]](0x0..0xA)) {
+        $colfrom = ($from + 1 + [bool]($from % 10)) % 3
+        $colto   = ($to   + 1 + [bool]($to   % 10)) % 3
+        $rowfrom = 3 - [System.Math]::Ceiling(($from % 10) / 3)
+        $rowto   = 3 - [System.Math]::Ceiling(($to   % 10) / 3)
+        $dx      = $colto - $colfrom
+        $dy      = $rowto - $rowfrom
+
+        # Algorithm prioritizes left over up and down over right. Avoid passing non-button space!
+        if ((0 -eq $colFrom -and 3 -eq $rowTo) -or (3 -eq $rowFrom -and 0 -eq $colTo)) {
+            $numericNumpad.Add((GetKey $from $to), (calcActions $dx $dy -swapPriorities))
+        } else {
+            $numericNumpad.Add((GetKey $from $to), (calcActions $dx $dy))
+        }
+    }
+}
+
+foreach ($from in [Action].GetEnumValues()) { # Directional
+    foreach ($to in [Action].GetEnumValues()) {
+        $colfrom = ($from + 1 + [bool]($from % 4)) % 3
+        $colto   = ($to   + 1 + [bool]($to   % 4)) % 3
+        $rowfrom = [bool]($from % 4)
+        $rowto   = [bool]($to   % 4)
+        $dx      = $colto - $colfrom
+        $dy      = $rowto - $rowfrom
+
+        # Algorithm prioritizes left over down and up over right. Avoid passing non-button space!
+        if ((0 -eq $colFrom -and 0 -eq $rowTo) -or (0 -eq $rowFrom -and 0 -eq $colTo)) {
+            $directionalNumpad.Add((GetKey $from $to), (calcActions $dx $dy -swapPriorities))
+        } else {
+            $directionalNumpad.Add((GetKey $from $to), (calcActions $dx $dy))
+        }
+    }
+}
+
+## Define cache and recursive function
 $cache = [System.Collections.Generic.Dictionary[byte,
-          System.Collections.Generic.Dictionary[int32,int64]]]::new() # [levelsdeep][blockKey]=length
+          System.Collections.Generic.Dictionary[int32,int64]]]::new() # [levelsdeep]=dict
 foreach ($i in 1..$levelsDeep) {
     $cache[$i] = [System.Collections.Generic.Dictionary[int32,int64]]::new() # [blockKey]=length
 }
@@ -73,47 +105,7 @@ function processBlock([byte[]]$block, [byte]$levelsDeep) {
     return $res
 }
 
-$numericNumpad     = [System.Collections.Generic.Dictionary[byte, Action[]]]::new() # 0x0..0xA
-$directionalNumpad = [System.Collections.Generic.Dictionary[byte, Action[]]]::new() # [Action]
-
-# Define all combinations for the numeric numpad
-foreach ($from in [byte[]](0x0..0xA)) {
-    foreach ($to in [byte[]](0x0..0xA)) {
-        $colfrom = ($from + 1 + [bool]($from % 10)) % 3
-        $colto   = ($to   + 1 + [bool]($to   % 10)) % 3
-        $rowfrom = 3 - [System.Math]::Ceiling(($from % 10) / 3)
-        $rowto   = 3 - [System.Math]::Ceiling(($to   % 10) / 3)
-        $dx      = $colto - $colfrom
-        $dy      = $rowto - $rowfrom
-
-        # Algorithm prioritizes left over up and down over right. Avoid passing non-button space!!
-        if ((0 -eq $colFrom -and 3 -eq $rowTo) -or (3 -eq $rowFrom -and 0 -eq $colTo)) {
-            $numericNumpad.Add((GetKey $from $to), (calcActions $dx $dy -swapPriorities))
-        } else {
-            $numericNumpad.Add((GetKey $from $to), (calcActions $dx $dy))
-        }
-    }
-}
-
-# Define all combinations for the directional numpad
-foreach ($from in [Action].GetEnumValues()) {
-    foreach ($to in [Action].GetEnumValues()) {
-        $colfrom = ($from + 1 + [bool]($from % 4)) % 3
-        $colto   = ($to   + 1 + [bool]($to   % 4)) % 3
-        $rowfrom = [bool]($from % 4)
-        $rowto   = [bool]($to   % 4)
-        $dx      = $colto - $colfrom
-        $dy      = $rowto - $rowfrom
-
-        # Algorithm prioritizes left over down and up over right. Avoid passing non-button space!!
-        if ((0 -eq $colFrom -and 0 -eq $rowTo) -or (0 -eq $rowFrom -and 0 -eq $colTo)) {
-            $directionalNumpad.Add((GetKey $from $to), (calcActions $dx $dy -swapPriorities))
-        } else {
-            $directionalNumpad.Add((GetKey $from $to), (calcActions $dx $dy))
-        }
-    }
-}
-
+## Execute: process all blocks
 $sum = 0
 foreach ($line in $file) {
     $prevNum = [byte]0xA
