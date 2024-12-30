@@ -20,7 +20,7 @@ function getKey([byte]$a, [byte]$b) {
 function getBlockKey([byte[]]$block) {
     [int32]$res = 0 # Longest path is from A to 7 with 6 actions. (6 * 4) bits fit in 32 bit int
     foreach ($i in 0..($block.Count - 1)) {
-        $res += [int32]$block[$i] -shl (4 * $i) # Last byte is always 4 (Press), must be MSB
+        $res += [int32]$block[$i] -shl (4 * $i) # Last byte is always Press (nonzero) -> MSB
     }
     return $res
 }
