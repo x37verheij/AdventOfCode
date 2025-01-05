@@ -34,9 +34,6 @@ foreach ($pc1 in ($map.Keys | Where-Object { $_ -like 't*' })) {
 do {
     Write-Host "$($groupsFound[$groupSize].Count) groups found with size $groupSize"
     $groupSize += 1
-    
-    # Save up memory
-    if ($groupsFound.Keys -contains ($groupSize - 2)) { $groupsFound[$groupSize - 2].Clear(); $null=$groupsFound.Remove($groupSize - 2) }
     $groupsFound[$groupSize] = New-Object System.Collections.Generic.HashSet[string]
 
     foreach ($group in $groupsFound[$groupSize - 1]) {
